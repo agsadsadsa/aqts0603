@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>防止AI类软件获取隐私文件</title>
+  <!-- 引入中文字体 Noto Sans SC -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    /* 页面基础样式和背景设置 */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow-x: hidden;
+      font-family: 'Noto Sans SC', sans-serif;
+      background: url('background.png') no-repeat center center fixed;
+      background-size: cover;
+    }
+
+    /* 鼠标彩色轨迹 canvas 层 */
+    canvas#trail-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* 页面主内容容器 */
+    .container {
+      position: relative;
+      z-index: 2;
+      max-width: 1080px;
+      margin: 60px auto;
+      padding: 40px 30px;
+      background: rgba(255, 255, 255, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(10px);
+      opacity: 0;
+      transform: translateY(-50px); /* 从上往下的动画过渡起始 */
+      transition: opacity 1s ease, transform 1s ease;
+    }
+
+    /* 显示主内容时的状态 */
+    .container.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* 主标题样式 */
+    h1 {
+      text-align: center;
+      font-size: 36px;
+      color: #2c3e50;
+    }
+
+    /* 简介段落样式 */
+    .intro {
+      font-size: 18px;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    /* 视频容器设置 16:9 比例 */
+    .video-container {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
+      overflow: hidden;
+      max-width: 100%;
+      margin-bottom: 40px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    /* 内嵌 YouTube 视频样式 */
+    .video-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 10px;
+    }
+
+    /* 分割线样式，增强视觉效果 */
+    .divider {
+      text-align: center;
+      margin: 60px 0;
+      position: relative;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 40%;
+      height: 1px;
+      background: #aaa;
+    }
+
+    .divider::before {
+      left: 0;
+    }
+
+    .divider::after {
+      right: 0;
+    }
+
+    .divider span {
+      display: inline-block;
+      padding: 0 15px;
+      font-size: 24px;
+      color: #888;
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 10px;
+    }
+
+    /* 截图部分整体布局 */
+    .screenshot-section {
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+      align-items: center;
+    }
+
+    /* 单个截图区域样式 */
+    .screenshot {
+      text-align: center;
+      max-width: 960px;
+      width: 100%;
+    }
+
+    /* 截图图片样式 */
+    .screenshot img {
+      width: 100%;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      margin-bottom: 15px;
+    }
+
+    /* 截图描述文字样式 */
+    .screenshot p {
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    /* 附加说明区域样式 */
+    .note {
+      margin-top: 60px;
+      font-style: italic;
+      background: rgba(241, 241, 241, 0.9);
+      padding: 20px;
+      border-left: 5px solid #007BFF;
+      border-radius: 6px;
+    }
+
+    /* 响应式布局：移动端适配 */
+    @media (max-width: 768px) {
+      .container {
+        margin: 20px;
+        padding: 30px 20px;
+      }
+    }
+	
+/* 红蓝渐变标题样式 */
+.gradient-title {
+  background: linear-gradient(90deg, red, blue); /* 红到蓝渐变 */
+  -webkit-background-clip: text;                /* 使用文字轮廓裁剪背景 */
+  -webkit-text-fill-color: transparent;         /* 让文字透明，显示背景渐变 */
+  font-weight: bold;
+}
+
+/* 黄蓝渐变标题样式 */
+.gradient-title2 {
+  background: linear-gradient(90deg, blue, red); /* 从左到右：黄→蓝 */
+  -webkit-background-clip: text; /* 背景裁剪到文字 */
+  -webkit-text-fill-color: transparent; /* 文字填充透明以显示背景 */
+  font-weight: bold;
+}
+
+/* 白字+红色边框描边效果 */
+.outlined-title {
+  color: black; /* 字体颜色为白色 */
+  text-shadow:
+    -1px -1px 0 white,
+     1px -1px 0 white,
+    -1px  1px 0 white,
+     1px  1px 0 white; /* 四个方向模拟红色边框 */
+  font-weight: bold;
+    text-align: left; /* 向左对齐 */
+  display: block;   /* 确保是块级元素 */
+  margin: 0;        /* 清除自动外边距 */
+}
+
+
+
+  </style>
+</head>
+<body>
+
+  <!-- 彩色鼠标轨迹 Canvas 元素 -->
+  <canvas id="trail-canvas"></canvas>
+
+  <!-- 页面主内容容器 -->
+  
+  <div class="container" id="main-content">
+    <h1 class="gradient-title">📢防止AI类软件获取隐私文件ℹ️</h1>
+
+    <!-- 截图部分标题 -->
+    <div class="intro">
+      <h3>♨️♨️..最近听说一个安全问题，事例如下：今天有一个姊妹反应：用剪映这个软件从电脑拉了一个素材（D盘）进软件，过了三五分钟再去看，发现电脑‘下载’文件夹和‘D盘’里面所有的素材，包括祷告词、做好的视频、视频素材、图片素材全部都加载进去了。<br>♨️♨️..据本人所说，用剪映已经几天了，前几天都是正常，拉一个素材就只上传一个素材……</h3>
+	  <h3>⛑️⛑️..剪映和抖音、微信一样，同属大陆危险软件。如果使用不当，误将内部信息、资料上传，就会造成安全隐患和重要信息泄露的风险。<br>⛑️⛑️..想到现在有不少弟兄姊妹平时也会使用各类AI网站或软件，在使用这些网站的时候也会涉及到上传图片素材文件等，有些网站支持上传的文件类型比较广泛，如果误操作将内部敏感文件拖上去，就会上传到网站的服务器上，造成敏感信息泄露。所以使用这些网站的时候需要谨慎操作。</h3>
+    </div>
+
+    <!-- 截图区域放到前面 -->
+    <div class="screenshot-section">
+      <div class="screenshot">
+        <img src="screenshot1.jpg" alt="截图1">
+        <h2  class="gradient-title2">👆上面是Canva软件会被上传的文件格式，上传时别上传内部敏感文件、视频、音频。👆</h2>
+      </div>
+      <div class="screenshot">
+        <img src="screenshot2.jpg" alt="截图2">
+        <h2  class="gradient-title2">👆上面是chatgpt软件上传时的界面，所有格式都会被上传。👆</h2>
+		<h1  class="outlined-title"><br>对此，有以下几点建议：</h1>
+		<h2  class="outlined-title">① 保持电脑磁盘的整洁干净。敏感文件、不公开的东西放在加密卷里保存，定期整理清理电脑磁盘外面的空间（比如下载、图片、视频文件夹，D盘等）</h2>
+		<h2  class="outlined-title">② 对于剪映这类危险软件\网站，需要专机专用，专门用于危险软件的电脑上不存放敏感信息和文件。如果没有多余的电脑设备，可以安装虚拟机，在虚拟机中使用剪映这类危险软件\网站，虚拟机中只存放需要用到的素材等。 如果电脑配置不高，无法安装虚拟机使用，平时在使用上传素材的时候就得谨慎操作。</h2>
+		<h2  class="outlined-title">③ 对于平常使用的安全网站（比如canva、chatgpt等）这种涉及到上传文件或文件夹的，在上传时也需要检查好，避免将敏感文件上传上去。</h2>
+      </div>
+    </div>
+
+    <!-- 分割线 -->
+    <div class="divider"><span>✦✦✦</span></div>
+
+    <!-- 简介说明 -->
+    <div class="intro">
+      <h2 class="gradient-title">
+        <br>另外，最近有弟兄姊妹反馈Teams出现收不到信息的情况，或者是找不到头像的情况，
+        <br>因为软件版的teams不能刷新重新加载，需要注销重新登录，比较麻烦；
+        <br>咱们可以用上次说的teams多开的这个软件。这个软件可以手动刷新页面，让信息重新显示出来。
+      </h2>
+    </div>
+
+    <!-- 嵌入视频教程 -->
+    <div class="video-container">
+      <iframe src="https://www.youtube.com/embed/TVj3-5pHp0Q" frameborder="0" allowfullscreen></iframe>
+    </div>
+
+    <!-- 附加说明区域 -->
+    <div class="note">
+      相关文档内容： <a href="https://docs.google.com/document/d/1gyoyU39FEYgrfy04zoaaiKCFjfPhXvJ6gUCS_iD_4GU/edit?tab=t.0#heading=h.w05svxj6swgp" target="_blank">第七十一章：💥Teams可以多开啦~💥</a> <br>阅读其他内容： <a href="https://docs.google.com/document/d/1gyoyU39FEYgrfy04zoaaiKCFjfPhXvJ6gUCS_iD_4GU/edit?tab=t.0#heading=h.wc86u1w9mya0" target="_blank">安全推送（持续更新）</a>
+    </div>
+  </div>
+
+  <!-- 内容加载后执行入场动画 -->
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        document.getElementById('main-content').classList.add('show');
+      }, 1000); // 延迟 1 秒后添加 class 触发动画
+    });
+  </script>
+
+  <!-- 七彩鼠标轨迹动画脚本 -->
+  <script>
+    // 获取 canvas 元素并设置尺寸
+    const canvas = document.getElementById('trail-canvas');
+    const ctx = canvas.getContext('2d');
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+
+    const particles = []; // 粒子数组
+    let hue = 0; // 色相初始值
+
+    // 窗口大小变化时更新 canvas 尺寸
+    window.addEventListener('resize', () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+    });
+
+    // 鼠标移动时创建彩色粒子
+    document.addEventListener('mousemove', (e) => {
+      for (let i = 0; i < 3; i++) {
+        particles.push({
+          x: e.clientX,
+          y: e.clientY,
+          size: Math.random() * 6 + 2,
+          speedX: (Math.random() - 0.5) * 3,
+          speedY: (Math.random() - 0.5) * 3,
+          color: `hsl(${hue}, 100%, 70%)`,
+          life: 60
+        });
+      }
+    });
+
+    // 动画渲染函数
+    function animate() {
+      ctx.clearRect(0, 0, width, height); // 清空画布
+
+      // 渲染每一个粒子
+      particles.forEach((p, i) => {
+        p.x += p.speedX;
+        p.y += p.speedY;
+        p.life--;
+        p.size *= 0.96;
+
+        // 如果粒子死亡，则移除
+        if (p.life <= 0 || p.size < 0.5) {
+          particles.splice(i, 1);
+          return;
+        }
+
+        // 绘制粒子
+        ctx.beginPath();
+        ctx.globalAlpha = p.life / 60;
+        ctx.fillStyle = p.color;
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      ctx.globalAlpha = 1; // 重置透明度
+      hue += 1; // 色相变化
+      requestAnimationFrame(animate); // 下一帧动画
+    }
+
+    animate(); // 启动动画
+  </script>
+
+</body>
+</html>
